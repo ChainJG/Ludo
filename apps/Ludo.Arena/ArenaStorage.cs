@@ -8,6 +8,7 @@ using Ludo.Runner;
 namespace Ludo.Arena;
 
 public sealed record LocalRecord(int Wins, int Losses);
+public sealed record EffectsPreferences(bool Sound, bool Motion);
 public sealed record SavedArena(MatchRecord Match, Dictionary<string, LocalRecord> Records, bool Counted);
 public sealed record GameReadout(GameStateView State, ImmutableArray<Move> LegalMoves, bool CanRoll, bool CanMove,
     bool Busy, string Error, bool HasSavedGame);
@@ -15,6 +16,7 @@ public sealed record GameReadout(GameStateView State, ImmutableArray<Move> Legal
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(SavedArena))]
 [JsonSerializable(typeof(GameReadout))]
+[JsonSerializable(typeof(EffectsPreferences))]
 [JsonSerializable(typeof(Ludo.Presentation.BoardMotion))]
 public partial class ArenaJsonContext : JsonSerializerContext;
 

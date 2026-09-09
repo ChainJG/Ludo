@@ -14,6 +14,10 @@
  <header class="masthead"><a class="icon-button" href="#match-options" aria-label="Match settings" @onclick="() => OpenPanel(false)" @onclick:preventDefault>☰</a><div class="brand">LUDO <span>ARENA</span></div><a class="icon-button" href="#game-rules" aria-label="Game rules" @onclick="() => OpenPanel(true)" @onclick:preventDefault>?</a></header>
  <main class="arena-layout">
   <section class="play-surface" aria-label="Ludo board">
+   <div class="effects-controls" aria-label="Game effects">
+    <button @onclick="ToggleSound" aria-pressed="@soundEnabled" aria-label="@(soundEnabled ? "Mute game sounds" : "Enable game sounds")"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4 5 9H2v6h3l6 5Z"/><path d="M15 8q5 4 0 8m3-11q8 7 0 14"/></svg>Sound @(soundEnabled ? "on" : "off")</button>
+    <button @onclick="ToggleMotion" aria-pressed="@motionEnabled" aria-label="@(motionEnabled ? "Turn animations off" : "Turn animations on")"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17q4-22 9-7t9-3M2 21h20"/></svg>Animations @(motionEnabled ? "on" : "off")</button>
+   </div>
    @for (int row = 0; row < 2; row++)
    {
     <div class="player-row @(row == 1 ? "bottom-row" : "top-row")">
@@ -95,6 +99,10 @@
  private GameStateView? visualView;
  private GameStateView VisualView => visualView ?? View;
  private bool animating, rolling;
+ private bool soundEnabled = true, motionEnabled = true;
+ private async Task ToggleSound() { soundEnabled = !soundEnabled; await SaveEffects(); }
+ private async Task ToggleMotion() { motionEnabled = !motionEnabled; await SaveEffects(); }
+ private async Task SaveEffects() { if (module is not null) await module.InvokeVoidAsync("setEffectsPreferences", soundEnabled, motionEnabled); }
  private int? dicePlayer;
  private int DicePlayer => dicePlayer ?? View.CurrentPlayer;
  private int DisplayDie(int player) => View.LastEvent.PlayerIndex == player ? View.LastEvent.Die : 0;
@@ -124,6 +132,8 @@
    module = await JS.InvokeAsync<IJSObjectReference>("import", "./arena.js"); executor = new(module); ready = true;
    agentHandle = DotNetObjectReference.Create(this);
    await module.InvokeVoidAsync("registerGameTools", agentHandle);
+   var effects = await module.InvokeAsync<EffectsPreferences>("getEffectsPreferences");
+   soundEnabled = effects.Sound; motionEnabled = effects.Motion;
    var json = await module.InvokeAsync<string?>("load");
    if (json is not null) {
     var saved = JsonSerializer.Deserialize<SavedArena>(json, ArenaJson.Options) ?? throw new FormatException("Invalid saved game.");
@@ -215,6 +225,7 @@
  private async Task Changed(GameStateView? before = null, bool skipMotion = false)
  {
   bool playMotion = before is not null && !skipMotion && module is not null && View.LastEvent.Kind == EventKind.Moved;
+  bool victory = before is not null && before.FinishingOrder.IsEmpty && !View.FinishingOrder.IsEmpty;
   // Keep the previous board on screen before any asynchronous storage or rendering work.
   if (playMotion) { animating = true; dicePlayer ??= before!.CurrentPlayer; visualView = before; }
   announcement = BoardPresentation.Describe(View); moveLog.Add(announcement);
@@ -238,6 +249,7 @@
    try { await module!.InvokeVoidAsync("animateMove", boardElement, JsonSerializer.Serialize(BoardMotion.Between(before!, View), ArenaJson.Options)); }
    finally { visualView = null; await RenderBoard(); }
   }
+  if (victory && module is not null) await module.InvokeVoidAsync("celebrateVictory");
   StateHasChanged();
  }
  private async Task Persist()

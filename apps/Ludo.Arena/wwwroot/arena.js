@@ -1,20 +1,35 @@
 let worker, ready, startupTimer, startupReject;
-import { playBoardMotion } from './motion.js';
-export async function animateMove(board, json) { await playBoardMotion(board, JSON.parse(json)); }
-export async function animateDice(player) {
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const die = document.querySelector(`.player-die[data-player="${player}"] img`);
-    if (!die) return;
-    const original = die.getAttribute('src'); let frame = 0;
-    const timer = setInterval(() => { die.src = `assets/dice-${++frame % 6 + 1}.png`; }, 70);
-    const animation = die.animate([
-        {transform:'translateY(0) rotate(0) scale(1)'},
-        {transform:'translateY(-12px) rotate(160deg) scale(1.12)',offset:.4},
-        {transform:'translateY(-5px) rotate(290deg) scale(.95)',offset:.8},
-        {transform:'translateY(0) rotate(360deg) scale(1)'}
-    ], {duration:500,easing:'ease-out'});
-    try { await animation.finished; } finally { clearInterval(timer); die.setAttribute('src', original); animation.cancel(); }
+import { playBoardMotion, playDice, readMotion } from './motion.js?v=effects-2';
+import { createSoundBank } from './sound.js?v=effects-2';
+const sounds = createSoundBank();
+let effects = {sound:true,motion:true}, gestureListeners;
+export function getEffectsPreferences() {
+    try {
+        const saved = JSON.parse(localStorage.getItem('ludo-effects-v1'));
+        if (saved) effects = {sound:saved.sound !== false,motion:saved.motion !== false};
+    } catch {}
+    sounds.setEnabled(effects.sound);
+    document.documentElement.dataset.motion = effects.motion ? 'on' : 'off';
+    if (!gestureListeners) {
+        gestureListeners = new AbortController();
+        for (const event of ['pointerdown','keydown'])
+            window.addEventListener(event, () => sounds.unlock(), {capture:true,signal:gestureListeners.signal});
+    }
+    return {...effects};
 }
+export function setEffectsPreferences(sound, motion) {
+    effects = {sound:!!sound,motion:!!motion}; sounds.setEnabled(effects.sound);
+    document.documentElement.dataset.motion = effects.motion ? 'on' : 'off';
+    try { localStorage.setItem('ludo-effects-v1',JSON.stringify(effects)); } catch {}
+    if (effects.sound) sounds.unlock();
+    return {...effects};
+}
+export function readEffects() { return {preferences:{...effects},motion:readMotion(),audio:sounds.read()}; }
+export async function animateMove(board, json) { await playBoardMotion(board, JSON.parse(json), !effects.motion, kind => sounds.play(kind)); }
+export async function animateDice(player) {
+    await playDice(document.querySelector(`.player-die[data-player="${player}"] img`), !effects.motion, kind => sounds.play(kind));
+}
+export function celebrateVictory() { sounds.play('victory'); }
 let sequence = 0;
 const pending = new Map();
 

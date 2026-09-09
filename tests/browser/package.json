@@ -1,5 +1,5 @@
 {
   "name": "ludo-browser-contracts", "private": true, "type": "module",
-  "scripts": { "test": "node --test motion.test.mjs && node contracts.mjs" },
+  "scripts": { "test": "node --test motion.test.mjs && node contracts.mjs && node effects.mjs" },
   "devDependencies": { "playwright": "1.63.0" }
 }

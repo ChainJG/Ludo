@@ -96,6 +96,7 @@ try {
  // Exercise actual human turns through the public controller, including the single
  // available pawn case. Reduced motion keeps this sequence fast without changing rules.
  await page.emulateMedia({ reducedMotion:'reduce' });
+ await page.evaluate(async () => (await import(new URL('arena.js', document.baseURI))).setEffectsPreferences(false, false));
  await page.evaluate(async () => (await import(new URL('arena.js', document.baseURI))).startGame(2, ['human','human'], 1));
  let forcedFour = false, manualChoice = false, bonusWaits = false;
  for (let turn = 0; turn < 150 && !(forcedFour && manualChoice && bonusWaits); turn++) {
