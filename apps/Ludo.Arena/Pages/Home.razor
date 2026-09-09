@@ -84,7 +84,9 @@
  </main>
 </div>
 @code {
- private MatchSession match = new(new() { PlayerCount = 2 }, 1, [null, new("v2")]);
+ // Browser workers vary widely in speed; bots use deterministic node budgets, so a generous time limit only avoids false disqualifications.
+ private const double BotBudgetMilliseconds = 2000;
+ private MatchSession match = new(new() { PlayerCount = 2 }, 1, [null, new("v2")], BotBudgetMilliseconds);
  private IJSObjectReference? module;
  private BrowserBotExecutor? executor;
  private DotNetObjectReference<Home>? agentHandle;
@@ -148,7 +150,7 @@
  private async Task NewGame() => await Guard(async () => {
   if (busy || animating) return;
   match = new(new() { PlayerCount = playerCount }, seed,
-   selections.Take(playerCount).Select(value => value == "human" ? null : value == "custom-neural" ? customNeural : new BotSpec(value)).ToImmutableArray());
+   selections.Take(playerCount).Select(value => value == "human" ? null : value == "custom-neural" ? customNeural : new BotSpec(value)).ToImmutableArray(), BotBudgetMilliseconds);
   counted = false; savedGame = null; moveLog.Clear(); botsPaused = false; announcement = "New game ready.";
   await Persist(); await RunBots();
  });

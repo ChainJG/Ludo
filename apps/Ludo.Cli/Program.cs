@@ -19,7 +19,7 @@ try
     string command = args.FirstOrDefault() ?? "help";
     if (command == "help")
     {
-        Console.WriteLine("Neural training: train --games 2000 --teacher v3 --out my-bot.json\nContinue training: train --resume my-bot.latest.json --games 2000 --out next-bot.json\nOptions: --warmup 200 --evaluate-every 200 --evaluation-games 100 --learning-rate 0.015 --players 2 --seed 73001\n");
+        Console.WriteLine("Neural training: train --games 2000 --teacher v3 --out my-bot.json\nContinue training: train --resume my-bot.latest.json --games 2000 --out next-bot.json\nOptions: --warmup 200 --evaluate-every 200 --evaluation-games 100 --learning-rate 0.015 --players 2 --seed 73001\n         --teacher v9 (any bot version) --opponents v2,v3,v8,v9 (self-play opponents after warmup)\n");
         Console.WriteLine("Ludo laboratory\n  bots\n  match --bots v1,v2 --seed 1 --out match.json\n  batch --bots v1,v2 --games 500 --seed 1 --parallel 4 --out results.json\n  gate --candidate v2 --champion v1 --games 500\n  replay --file match.json\n  tune --games 100 --rounds 4 --seed 9000 --out weights.json\n\nAll matches use isolated bot processes by default. --inline is for trusted throughput experiments.\nFour-player runs: --players 4 --bots v1,v2,v3,v4. Budgets: --budget 50.");
         return 0;
     }
@@ -35,7 +35,8 @@ try
         var config = new TrainingConfig(int.Parse(Value("--games", "2000")), int.Parse(Value("--warmup", "200")),
             int.Parse(Value("--evaluate-every", "200")), int.Parse(Value("--evaluation-games", "100")),
             uint.Parse(Value("--seed", (initial?.TrainingSeed ?? 73001).ToString())),
-            double.Parse(Value("--learning-rate", "0.015"), System.Globalization.CultureInfo.InvariantCulture), int.Parse(Value("--players", "2")), Value("--teacher", "v3"));
+            double.Parse(Value("--learning-rate", "0.015"), System.Globalization.CultureInfo.InvariantCulture), int.Parse(Value("--players", "2")), Value("--teacher", "v3"),
+            Value("--opponents", "v1,v2,v3"));
         string path = Value("--out", "artifacts/neural-bot.json");
         using var cancel = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancel.Cancel(); };

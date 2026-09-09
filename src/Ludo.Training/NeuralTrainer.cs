@@ -6,8 +6,14 @@ using Ludo.Runner;
 
 namespace Ludo.Training;
 
+// Teacher: any registered bot version imitated during warmup. Opponents: comma-separated registered versions
+// the learner plays against after warmup (every fourth game still uses a frozen snapshot of the learner).
 public sealed record TrainingConfig(int Games = 2000, int WarmupGames = 200, int EvaluateEvery = 200,
-    int EvaluationGames = 100, uint Seed = 73001, double LearningRate = 0.015, int Players = 2, string Teacher = "v3");
+    int EvaluationGames = 100, uint Seed = 73001, double LearningRate = 0.015, int Players = 2, string Teacher = "v3",
+    string Opponents = "v1,v2,v3")
+{
+    public string[] OpponentKeys => Opponents.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+}
 public sealed record TrainingPoint(int Games, double WinRate, double Lower95, double Upper95, int EvaluationGames);
 public sealed record TrainingCheckpoint(TrainingConfig Config, BotSpec Latest, BotSpec Best, ImmutableArray<TrainingPoint> History);
 public sealed record TrainingProgress(int Completed, int Total, string Stage, double? WinRate = null);
@@ -22,9 +28,12 @@ public static class NeuralTrainer
         IProgress<TrainingProgress>? progress = null, Func<TrainingCheckpoint, Task>? checkpoint = null,
         CancellationToken cancellationToken = default)
     {
+        static bool Registered(string key) => BotRegistry.All.Any(b => b.Key == key);
+        var pool = config.OpponentKeys;
         if (config.Games is < 1 or > 1000000 || config.WarmupGames < 0 || config.EvaluateEvery < 1 || config.EvaluationGames < 2
-            || config.EvaluationGames % 2 != 0 || config.Players is not (2 or 4) || config.Teacher is not ("v2" or "v3") || !double.IsFinite(config.LearningRate)
+            || config.EvaluationGames % 2 != 0 || config.Players is not (2 or 4) || !Registered(config.Teacher) || !double.IsFinite(config.LearningRate)
             || config.LearningRate <= 0 || config.LearningRate > 0.2) throw new ArgumentException("Invalid training settings. Evaluation games must be positive and even.");
+        if (pool.Length == 0 || !pool.All(Registered)) throw new ArgumentException("Opponents must be a comma-separated list of bot versions, such as v2,v3,v8,v9.");
         var model = initial ?? NeuralNetwork.Initialize(config.Seed);
         model.Validate();
         var history = ImmutableArray.CreateBuilder<TrainingPoint>();
@@ -62,7 +71,7 @@ public static class NeuralTrainer
                 bool warmup = number < config.WarmupGames;
                 IBot teacher = BotRegistry.Create(new(config.Teacher));
                 IBot opponent = number % 4 == 3 ? new Bots.Versions.NeuralV7(model)
-                    : BotRegistry.Create(new(new[] { "v1", "v2", "v3" }[number % 3]));
+                    : BotRegistry.Create(new(pool[number % pool.Length]));
                 var trajectory = new List<(double[][] Features, int Choice)>();
                 while (!GameEngine.IsTerminal(state) && state.View.RollNumber < 20000)
                 {

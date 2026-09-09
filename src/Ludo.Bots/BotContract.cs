@@ -29,7 +29,9 @@ public static class BotRegistry
         new("v4", "expectimax", 4, "Expectimax v4", "Enumerates the next six dice outcomes using the v3 evaluator."),
         new("v5", "search", 5, "Search v5", "Two-roll max-n expectimax; retained for desktop comparisons.", false),
         new("v6", "compact-search", 6, "Compact search v6", "Two-roll search with a smaller expansion budget for browsers."),
-        new("v7", "neural", 7, "Neural v7", "Trainable neural policy with portable C# inference.")
+        new("v7", "neural", 7, "Neural v7", "Trainable neural policy with portable C# inference."),
+        new("v8", "chatgpt-tactician", 8, "ChatGPT Tactician v8", "Bonus-roll planning, capture exposure and exact private-lane endgames.", false),
+        new("v9", "fable", 9, "Fable v9", "Engine-resolved bonus-roll chains, opponent replies and a probabilistic race model scored as win chances.")
     ];
 
     public static IBot Create(BotSpec spec)
@@ -48,6 +50,8 @@ public static class BotRegistry
         "v5" => new Versions.SearchV5(spec.Weights ?? Versions.WeightedV3.DefaultWeights),
         "v6" => new Versions.CompactSearchV6(spec.Weights ?? Versions.WeightedV3.DefaultWeights),
         "v7" => new Versions.NeuralV7(spec.Model ?? NeuralNetwork.Bundled),
+        "v8" => new Versions.ChatGptV8(spec.Weights),
+        "v9" => new Versions.FableV9(),
         _ => throw new ArgumentException($"Unknown bot version '{spec.Key}'.")
         };
     }

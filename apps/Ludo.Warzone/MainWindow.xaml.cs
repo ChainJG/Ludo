@@ -37,6 +37,9 @@ public partial class MainWindow : Window
         InitializeComponent();
         foreach (var box in new[] { Bot0, Bot1, Bot2, Bot3 }) { box.ItemsSource = BotRegistry.All; box.DisplayMemberPath = "Label"; }
         Bot0.SelectedIndex = 1; Bot1.SelectedIndex = 0; Bot2.SelectedIndex = 2; Bot3.SelectedIndex = 3;
+        // Any deterministic released bot can teach; the neural bot itself and the random baseline are excluded.
+        TeacherBox.ItemsSource = BotRegistry.All.Where(b => b.Key is not ("v1" or "v7")).ToArray(); TeacherBox.DisplayMemberPath = "Label";
+        TeacherBox.SelectedItem = BotRegistry.All.First(b => b.Key == "v3");
         ParallelBox.Text = Math.Clamp(Environment.ProcessorCount - 1, 1, 8).ToString();
         MoveLog.ItemsSource = log;
         timer.Tick += async (_, _) => { if (playing && !busy) await Guard(async () => await StepAction()); };
@@ -278,7 +281,8 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() != true) return;
         var initial = ContinueNetwork.IsChecked == true ? customBot?.Model ?? throw new ArgumentException("Load a neural bot configuration first, or turn off Continue loaded network.") : null;
         var config = new TrainingConfig(int.Parse(TrainingGames.Text), int.Parse(WarmupGames.Text), int.Parse(EvaluationEvery.Text),
-            int.Parse(EvaluationGames.Text), uint.Parse(SeedBox.Text), double.Parse(LearningRate.Text, CultureInfo.InvariantCulture), Rules().PlayerCount, TeacherBox.SelectedIndex == 0 ? "v3" : "v2");
+            int.Parse(EvaluationGames.Text), uint.Parse(SeedBox.Text), double.Parse(LearningRate.Text, CultureInfo.InvariantCulture), Rules().PlayerCount,
+            ((BotDefinition)TeacherBox.SelectedItem).Key, OpponentsBox.Text);
         Pause(); batchCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); TrainButton.IsEnabled = false;
         try
         {

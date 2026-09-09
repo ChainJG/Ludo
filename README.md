@@ -2,7 +2,7 @@
 
 [Play Arena](https://chainjg.github.io/Ludo/) · [Deployment progress](https://github.com/ChainJG/Ludo/actions/workflows/pages.yml) · [Publish an update](docs/PUBLISHING.md)
 
-One C# game engine, seven versioned C# bots, and two applications:
+One C# game engine, versioned C# bots (Random v1 through Fable v9), and two applications:
 
 - **Arena** is the human-playable website. Standalone Blazor WebAssembly runs entirely in the browser and publishes to GitHub Pages. It uses the supplied board, dice and token images, with phone/desktop layouts, keyboard-accessible moves, readable board descriptions, local save/resume and personal results.
 - **Warzone** is the Windows WPF laboratory. Spectate with pause, turn stepping, adjustable speed, move logs and candidate scores; run parallel tournaments; inspect confidence intervals, ratings and finishing metrics; export complete replays and CSV results.
@@ -55,7 +55,7 @@ The verified build from 9 September 2026 is in `artifacts/arena-game-release/www
 
 Both game screens now put the dice beside the active avatar. Arena includes dice rolls, glowing/bobbing legal tokens, square-by-square movement and capture-return effects. Warzone skips piece travel for fast spectating. Both respect reduced-motion preferences.
 
-Warzone has a **Neural training** tab with teacher learning, game-result learning, checkpoints, continuation and validation. Arena can import the exported C# neural model. See [the training guide](docs/NEURAL-TRAINING.md) and [the latest validation](docs/UI-AND-NEURAL-VALIDATION.md). Neural v7 is experimental; it has not passed the promotion gate against v2.
+Warzone has a **Neural training** tab with teacher learning, game-result learning, checkpoints, continuation and validation. Any bot version can act as the teacher, and the sparring opponents after warmup are configurable (for example `v2,v3,v8,v9`). Arena can import the exported C# neural model. See [the training guide](docs/NEURAL-TRAINING.md) and [the latest validation](docs/UI-AND-NEURAL-VALIDATION.md). Neural v7 is experimental; it has not passed the promotion gate against v2.
 
 ## Bot laboratory
 
@@ -80,7 +80,7 @@ The regression gate requires a win rate strictly above 55% and a Wilson 95% lowe
 
 Tuning produces experimental weight configurations, not a newly released bot. Use a separate evaluation seed suite before adopting them. Higher version numbers are available for comparison and are not claims of greater strength.
 
-Arena offers v1–v4, Compact search v6 and experimental Neural v7. Search v5 remains available in Warzone and the CLI: its deeper search exceeded the 50 ms decision budget in the browser benchmark. Arena defaults to Heuristic v2, which passed the held-out baseline gate. Compact search v6 limits expansion to 72 nodes; it is an experimental alternative, not a promoted champion. Browser speed varies by device.
+Arena offers v1–v4, Compact search v6, experimental Neural v7 and Fable v9. Search v5 remains available in Warzone and the CLI: its deeper search exceeded the original 50 ms browser budget. Arena now allows bots 2,000 ms per decision because browser speed varies widely by device; every bot still uses a deterministic node budget, so a larger time limit only avoids false disqualifications. Arena defaults to Heuristic v2, which passed the held-out baseline gate. Compact search v6 limits expansion to 72 nodes; it is an experimental alternative, not a promoted champion.
 
 Warzone rounds tournament game counts up to a complete set of seat rotations and shows the adjusted count before running.
 

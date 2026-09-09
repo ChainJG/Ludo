@@ -5,7 +5,7 @@ Warzone now has a **Neural training** tab. Arena can load the same exported netw
 ## In Warzone
 
 1. Open **Match setup** and choose two or four players and a training seed.
-2. Open **Neural training**. Start with 2,000 games, 200 teacher games, a checkpoint every 200 games, 100 validation games and learning rate 0.015. Weighted v3 is the default teacher; Heuristic v2 is also available.
+2. Open **Neural training**. Start with 2,000 games, 200 teacher games, a checkpoint every 200 games, 100 validation games and learning rate 0.015. Weighted v3 is the default teacher; any other bot version, including ChatGPT Tactician v8 and Fable v9, can teach instead. **Opponents after warmup** lists the versions the learner plays against in the reinforcement stage (default `v1,v2,v3`; use `v2,v3,v8,v9` for stronger sparring). Every fourth game still uses a frozen snapshot of the learner.
 3. Select **Train and save** and choose an output filename. Progress and checkpoint results appear in the window.
 4. The best validation checkpoint is loaded into Yellow's bot slot when the run finishes. In Match setup, choose Heuristic v2 for the second seat. Run **Regression gate (500)** in Tournaments using a fresh seed.
 5. To continue learning, load the `.latest.json` file, enable **Continue loaded network**, and use the same training seed, teacher, player count and learning settings. The game count is the number of additional games. Teacher games refer to the total lifetime warmup, not an additional warmup each time.
@@ -40,13 +40,13 @@ dotnet run --project apps/Ludo.Cli -c Release -- train --resume artifacts/my-bot
 dotnet run --project apps/Ludo.Cli -c Release -- gate --candidate-config artifacts/my-bot.json --champion v2 --games 500 --seed 123987 --out artifacts/my-bot-gate.json
 ```
 
-Use `--players 4` for four-player training. CLI continuation uses the model's training seed unless you supply `--seed`. Changing it deliberately starts a different training stream. Reproducing uninterrupted training requires keeping the same seed, teacher, player count, lifetime warmup and learning rate; no optimizer momentum is hidden outside the checkpoint.
+Use `--players 4` for four-player training. `--teacher v9` imitates Fable v9 during warmup and `--opponents v2,v3,v8,v9` chooses the sparring partners after warmup. CLI continuation uses the model's training seed unless you supply `--seed`. Changing it deliberately starts a different training stream. Reproducing uninterrupted training requires keeping the same seed, teacher, opponents, player count, lifetime warmup and learning rate; no optimizer momentum is hidden outside the checkpoint.
 
 ## How it learns
 
 The model scores each legal move with 24 actor-relative features, one 24-unit tanh hidden layer, and one output. Features describe progress, home completion, captures, protection, nearby opponents and the prospective move. All candidate outcomes come from the shared engine. Inference chooses the highest score with a stable token-order tie break.
 
-The initial teacher stage uses supervised softmax cross entropy with 5% label smoothing. The later stage samples moves from the network's softmax distribution and updates it from the final finishing-place reward. Opponents include v1, v2, v3 and a frozen snapshot of the learner at the start of a game. This is episodic REINFORCE with backpropagation, a small entropy bonus, mean per-decision gradients and norm clipping. It follows the policy-gradient approach described in [Sutton et al., Policy Gradient Methods with Function Approximation](https://proceedings.neurips.cc/paper/1999/file/464d828b85b0bed98e80ade0a5c43b0f-Paper.pdf); the compact implementation and Ludo features are project-specific.
+The initial teacher stage uses supervised softmax cross entropy with 5% label smoothing. The later stage samples moves from the network's softmax distribution and updates it from the final finishing-place reward. Opponents rotate through the configured list (v1, v2 and v3 by default) and a frozen snapshot of the learner at the start of a game. This is episodic REINFORCE with backpropagation, a small entropy bonus, mean per-decision gradients and norm clipping. It follows the policy-gradient approach described in [Sutton et al., Policy Gradient Methods with Function Approximation](https://proceedings.neurips.cc/paper/1999/file/464d828b85b0bed98e80ade0a5c43b0f-Paper.pdf); the compact implementation and Ludo features are project-specific.
 
 Validation reuses a fixed, separate, mirrored seed suite so checkpoint changes are comparable. Because the best checkpoint is selected on that suite, its score is not an unbiased final performance estimate. Always use a fresh held-out gate before promotion. The gate also considers paired-seed uncertainty, incidents and incomplete games. Repeatedly changing the final test seed until a model passes would defeat that separation.
 
