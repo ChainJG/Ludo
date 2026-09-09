@@ -50,6 +50,13 @@ try {
         git commit -m $Message
         if ($LASTEXITCODE -ne 0) { throw 'Could not create the update commit.' }
     } elseif ($taskDifference -ne 0) { throw 'Could not inspect staged changes.' }
+    $taskAhead = git rev-list --count origin/main..HEAD
+    if ($LASTEXITCODE -ne 0) { throw 'Could not compare this update with GitHub.' }
+    if ([int]$taskAhead -eq 0) {
+        Write-Output 'No new update to publish. GitHub already has these changes.'
+        Write-Output 'Arena: https://chainjg.github.io/Ludo/'
+        return
+    }
     git push origin HEAD:main
     if ($LASTEXITCODE -ne 0) { throw 'The push did not complete. Your local commit is preserved; fix the connection and retry.' }
     Write-Output 'Update pushed. GitHub will validate and deploy Arena automatically.'
