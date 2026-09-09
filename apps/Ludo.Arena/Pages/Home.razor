@@ -31,14 +31,22 @@
     @if (row == 0)
     {
      <div class="board-wrap" @ref="boardElement">
-      <img class="board-image" src="assets/board.png" alt="Ludo board with eight safe stars and four home lanes" width="1132" height="1110" />
+      <img class="board-image" src="assets/board.png" alt="Ludo board with eight safe stars and four home lanes" width="1254" height="1254" />
       @foreach (var token in BoardPresentation.Tokens(VisualView))
       {
        var current = token;
        bool legal = !animating && token.Player == View.CurrentPlayer && Legal.Contains(new Move(token.Token));
        <button @key="(token.Player, token.Token)" data-token-key="@($"{token.Player}-{token.Token}")" class="token @(legal ? "legal" : "")" style="left:@Pct(token.X);top:@Pct(token.Y);--seat:@BoardPresentation.HexColours[token.Seat];--pulse:@(900 + token.Token * 170)ms;--phase:@(-token.Token * 230)ms" aria-label="@(token.Description + (legal ? ", legal move" : ""))" disabled="@(!CanMove || !legal)" @onclick="() => Choose(current.Token)">
-        <img src="@($"assets/token-{BoardPresentation.Colours[token.Seat].ToLowerInvariant()}.png")" alt=""/><span>@(token.Token + 1)</span>
+        <svg viewBox="330 50 610 1150" aria-hidden="true"><image href="@($"assets/token-{BoardPresentation.Colours[token.Seat].ToLowerInvariant()}.png")" width="1254" height="1254" /></svg>
        </button>
+      }
+      @if (savedGame is not null)
+      {
+       <div class="resume-overlay"><section class="resume" role="dialog" aria-labelledby="resume-title">
+        <h1 id="resume-title">Your game is waiting</h1><p>Pick up where you left off.</p>
+        <button class="primary" @onclick="Resume" disabled="@(busy || animating)">Resume game</button>
+        <button class="text-button" @onclick="NewGame" disabled="@(busy || animating)">Start a new game</button>
+       </section></div>
       }
      </div>
     }
@@ -52,7 +60,6 @@
    @if (busy) { <button class="text-button" @onclick="PauseBots">Pause bots</button> }
    else if (!IsHuman && !Terminal && savedGame is null) { <button class="primary" @onclick="ResumeBots">Continue bots</button> }
    @if (!string.IsNullOrEmpty(error)) { <p class="error" role="alert">@error</p> }
-   @if (savedGame is not null) { <section class="resume"><strong>Your game is waiting</strong><button @onclick="Resume" disabled="@(busy || animating)">Resume game</button></section> }
   </section>
   <aside class="game-panel" aria-label="Match options">
    <details class="setup" id="match-options"><summary>Match settings</summary><fieldset disabled="@(busy || animating)">
@@ -79,6 +86,12 @@
  private DotNetObjectReference<Home>? agentHandle;
  private CancellationTokenSource run = new();
  private ElementReference boardElement;
+ private TaskCompletionSource? rendered;
+ private Task RenderBoard()
+ {
+  rendered ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
+  var completion = rendered.Task; StateHasChanged(); return completion;
+ }
  private GameStateView? visualView;
  private GameStateView VisualView => visualView ?? View;
  private bool animating, rolling;
@@ -105,6 +118,7 @@
 
  protected override async Task OnAfterRenderAsync(bool firstRender)
  {
+  var completion = rendered; rendered = null; completion?.TrySetResult();
   if (!firstRender) return;
   try {
    module = await JS.InvokeAsync<IJSObjectReference>("import", "./arena.js"); executor = new(module); ready = true;
@@ -135,7 +149,7 @@
  });
  private async Task Roll() => await Guard(async () => {
   if (!CanRoll) return; var before = View;
-  try { await RollAnimation(); match.Roll(); await Changed(before); }
+  try { await RollAnimation(); match.Roll(); await Changed(before); await ForcedMove(); }
   finally { animating = false; rolling = false; dicePlayer = null; StateHasChanged(); }
   await RunBots();
  });
@@ -147,7 +161,7 @@
  });
  private async Task RollAnimation()
  {
-  animating = true; rolling = true; dicePlayer = View.CurrentPlayer; StateHasChanged(); await Task.Yield();
+  animating = true; rolling = true; dicePlayer = View.CurrentPlayer; await RenderBoard();
   if (module is not null) await module.InvokeVoidAsync("animateDice", dicePlayer.Value);
   rolling = false;
  }
@@ -172,11 +186,19 @@
  }
  private async Task ResumeBots() { botsPaused = false; await Guard(RunBots); }
  private void PauseBots() { botsPaused = true; run.Cancel(); }
+ private async Task ForcedMove()
+ {
+  if (Terminal || !IsHuman || View.Phase != GamePhase.AwaitingMove || Legal.Length != 1) return;
+  var before = View; animating = true;
+  try { match.Move(Legal[0]); await Changed(before); }
+  finally { animating = false; dicePlayer = null; }
+ }
  private async Task RunBots()
  {
-  if (executor is null || busy || botsPaused) return;
+  if (executor is null || busy) return;
   run.Dispose(); run = new(); busy = true;
   try {
+   await ForcedMove();
    while (!Terminal && !IsHuman && !botsPaused) {
     StateHasChanged(); await Task.Delay(fastBots ? 1 : delay, run.Token);
     var before = View;
@@ -186,11 +208,15 @@
      await match.AdvanceAsync(executor, run.Token); await Changed(before, fastBots);
     } finally { animating = false; rolling = false; dicePlayer = null; }
    }
+   await ForcedMove();
   } catch (OperationCanceledException) { if (module is not null) await module.InvokeVoidAsync("stopWorker"); }
   finally { busy = false; StateHasChanged(); }
  }
  private async Task Changed(GameStateView? before = null, bool skipMotion = false)
  {
+  bool playMotion = before is not null && !skipMotion && module is not null && View.LastEvent.Kind == EventKind.Moved;
+  // Keep the previous board on screen before any asynchronous storage or rendering work.
+  if (playMotion) { animating = true; dicePlayer ??= before!.CurrentPlayer; visualView = before; }
   announcement = BoardPresentation.Describe(View); moveLog.Add(announcement);
   if (moveLog.Count > 100) moveLog.RemoveAt(0);
   if (match.Incidents.LastOrDefault() is { } incident) error = incident.Reason;
@@ -207,10 +233,10 @@
    counted = true;
   }
   await Persist();
-  if (before is not null && !skipMotion && module is not null && View.LastEvent.Kind == EventKind.Moved) {
-   animating = true; dicePlayer ??= before.CurrentPlayer; visualView = before; StateHasChanged(); await Task.Yield();
-   try { await module.InvokeVoidAsync("animateMove", boardElement, JsonSerializer.Serialize(BoardMotion.Between(before, View), ArenaJson.Options)); }
-   finally { visualView = null; }
+  if (playMotion) {
+   await RenderBoard();
+   try { await module!.InvokeVoidAsync("animateMove", boardElement, JsonSerializer.Serialize(BoardMotion.Between(before!, View), ArenaJson.Options)); }
+   finally { visualView = null; await RenderBoard(); }
   }
   StateHasChanged();
  }

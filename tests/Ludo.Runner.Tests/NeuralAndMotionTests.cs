@@ -65,7 +65,7 @@ public class NeuralAndMotionTests
         Assert.False(motion.Moves[0].Captured); Assert.Equal(5, motion.Moves[0].Points.Length);
         Assert.True(motion.Moves[1].Captured); Assert.Equal(3, motion.Moves[1].Points.Length);
         var entry = BoardPresentation.Location(2, 0, 0);
-        Assert.Equal(new BoardPoint(1.4 + entry.X * 6.48, 1.4 + entry.Y * 6.48), motion.Moves[1].Points[1]);
+        Assert.Equal(BoardPresentation.ToPercent(entry), motion.Moves[1].Points[1]);
         Assert.Equal(23, before.Players[0].Tokens[0]);
     }
 
@@ -77,5 +77,21 @@ public class NeuralAndMotionTests
         before = before with { Die = 2, Players = [before.Players[0] with { Tokens = [54, 4, 4, -1] }, before.Players[1] with { Tokens = [30, -1, -1, -1] }] };
         Assert.Equal(3, BoardMotion.Between(before, GameEngine.ApplyMove(before, new(0))).Moves[0].Points.Length);
         Assert.Single(BoardMotion.Between(before, GameEngine.ApplyMove(before, new(1))).Moves);
+    }
+
+    [Theory]
+    [InlineData(0, 0, -1, 202, 202)]
+    [InlineData(1, 1, -1, 919, 202)]
+    [InlineData(2, 0, -1, 1048, 1016)]
+    [InlineData(3, 3, -1, 331, 889)]
+    [InlineData(0, 0, 0, 155, 528)]
+    [InlineData(1, 0, 0, 706.75, 158.25)]
+    [InlineData(2, 0, 0, 1098.75, 684.25)]
+    [InlineData(3, 0, 0, 546.25, 1062.5)]
+    public void PawnFeetMatchArtworkHomeAndEntryCenters(int seat, int token, int progress, double x, double y)
+    {
+        var point = BoardPresentation.ToPercent(BoardPresentation.Location(seat, token, progress));
+        Assert.Equal(x, point.X * 12.54, 6);
+        Assert.Equal(y, point.Y * 12.54, 6);
     }
 }

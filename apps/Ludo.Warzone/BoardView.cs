@@ -11,7 +11,8 @@ namespace Ludo.Warzone;
 public sealed class BoardView : FrameworkElement
 {
     private readonly BitmapImage board;
-    private readonly BitmapImage[] pieces, dice;
+    private readonly BitmapSource[] pieces;
+    private readonly BitmapImage[] dice;
     private readonly DispatcherTimer pulse = new() { Interval = TimeSpan.FromMilliseconds(40) };
     private GameStateView? state;
     private string[] names = [];
@@ -21,7 +22,7 @@ public sealed class BoardView : FrameworkElement
     {
         BitmapImage Load(string name) => new(new Uri(System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", name)));
         board = Load("board.png");
-        pieces = BoardPresentation.Colours.Select(c => Load($"token-{c.ToLowerInvariant()}.png")).ToArray();
+        pieces = BoardPresentation.Colours.Select(c => (BitmapSource)new CroppedBitmap(Load($"token-{c.ToLowerInvariant()}.png"), new Int32Rect(330, 50, 610, 1150))).ToArray();
         dice = Enumerable.Range(1, 6).Select(i => Load($"dice-{i}.png")).ToArray();
         pulse.Tick += (_, _) => { phase += .12; InvalidateVisual(); };
         Unloaded += (_, _) => pulse.Stop();
@@ -61,7 +62,7 @@ public sealed class BoardView : FrameworkElement
         var legal = GameEngine.GetLegalMoves(state);
         foreach (var token in BoardPresentation.Tokens(state))
         {
-            double x = left + token.X / 100 * boardSize, y = top + token.Y / 100 * boardSize, size = boardSize * .062;
+            double x = left + token.X / 100 * boardSize, y = top + token.Y / 100 * boardSize, size = boardSize * .042;
             bool ready = token.Player == state.CurrentPlayer && legal.Contains(new Move(token.Token));
             double bounce = ready && SystemParameters.ClientAreaAnimation ? Math.Sin(phase * (1 + token.Token * .12) + token.Token) : 0;
             if (ready)
@@ -71,9 +72,8 @@ public sealed class BoardView : FrameworkElement
                 context.DrawEllipse(new SolidColorBrush(Color.FromArgb(170, 255, 255, 255)), new Pen(Brushes.White, 2), new Point(x, y), size * .4, size * .3);
             }
             y -= (bounce + 1) * (ready ? 2 : 0);
-            context.DrawImage(pieces[token.Seat], new Rect(x - size / 2, y - size * .72, size * (1 - bounce * .035), size * (1 + bounce * .055)));
-            context.DrawEllipse(new SolidColorBrush(Color.FromRgb(18, 40, 78)), new Pen(Brushes.White, .6), new Point(x + size * .23, y + size * .22), 7, 7);
-            Text(context, (token.Token + 1).ToString(), x + size * .23 - 3.5, y + size * .22 - 7, 10, Brushes.White);
+            double pawnWidth = size * (1 - bounce * .035), pawnHeight = size * 1150 / 610 * (1 + bounce * .055);
+            context.DrawImage(pieces[token.Seat], new Rect(x - pawnWidth / 2, y - pawnHeight * .9, pawnWidth, pawnHeight));
         }
         for (int p = 0; p < state.Players.Length; p++)
         {

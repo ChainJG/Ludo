@@ -93,8 +93,51 @@ try {
  await assert.rejects(() => page.evaluate(async () => (await import(new URL('arena.js', document.baseURI))).rollDie()));
  await pendingRoll;
  assert.equal((await read()).error, '');
+ // Exercise actual human turns through the public controller, including the single
+ // available pawn case. Reduced motion keeps this sequence fast without changing rules.
+ await page.emulateMedia({ reducedMotion:'reduce' });
+ await page.evaluate(async () => (await import(new URL('arena.js', document.baseURI))).startGame(2, ['human','human'], 1));
+ let forcedFour = false, manualChoice = false, bonusWaits = false;
+ for (let turn = 0; turn < 150 && !(forcedFour && manualChoice && bonusWaits); turn++) {
+  const before = await read();
+  assert.equal(before.error, '');
+  if (before.canMove) {
+   assert.ok(before.legalMoves.length > 1, 'a sole legal move must never wait for a click');
+   manualChoice = true;
+   await page.evaluate(async token => (await import(new URL('arena.js', document.baseURI))).moveToken(token), before.legalMoves[0].tokenId);
+  } else {
+   assert.equal(before.canRoll, true);
+   const savedBeforeRoll = await page.evaluate(async () => (await import(new URL('arena.js', document.baseURI))).load());
+   const after = await page.evaluate(async () => (await import(new URL('arena.js', document.baseURI))).rollDie());
+   assert.equal(after.error, '');
+   const player = before.state.currentPlayer, oldTokens = before.state.players[player].tokens;
+   const active = oldTokens.map((progress, token) => ({progress,token})).filter(p => p.progress >= 0 && p.progress <= 52);
+   if (active.length === 1 && oldTokens.filter(p => p === -1).length === 3 && after.state.lastEvent.die === 4) {
+    assert.equal(after.state.players[player].tokens[active[0].token], active[0].progress + 4, 'the only available pawn must automatically advance four squares');
+    assert.equal(after.canMove, false);
+    // An older save may stop after the roll, before the forced move was played.
+    const oldSave = JSON.parse(savedBeforeRoll);
+    oldSave.match.actions.push({kind:0,value:4});
+    await page.evaluate(async json => (await import(new URL('arena.js', document.baseURI))).save(json), JSON.stringify(oldSave));
+    await page.reload();
+    await waitReady(state => state.hasSavedGame);
+    const restored = await page.evaluate(async () => (await import(new URL('arena.js', document.baseURI))).resumeGame());
+    assert.deepEqual(restored.state, after.state, 'resuming a pending forced roll must complete the same move');
+    forcedFour = true;
+   }
+   if (after.canMove) assert.ok(after.legalMoves.length > 1);
+  }
+  const current = await read();
+  if (current.canRoll && current.state.consecutiveSixes > 0) {
+   const rolls = current.state.rollNumber;
+   await new Promise(resolve => setTimeout(resolve, 30));
+   assert.equal((await read()).state.rollNumber, rolls, 'bonus rolls must wait for the human');
+   bonusWaits = true;
+  }
+ }
+ assert.ok(forcedFour && manualChoice && bonusWaits, 'forced four, manual choices and bonus-roll waiting must all be exercised');
  assert.deepEqual(errors, []);
  assert.deepEqual(badRequests, [], 'all static resources must work under the repository subpath');
  const webMcpAvailable = await page.evaluate(() => !!document.modelContext?.registerTool);
- process.stdout.write(`PASS: browser C# bots, exact replay, invalid inputs, legal actions, refresh/resume, static subpath. Native WebMCP registry available: ${webMcpAvailable}.\n`);
+ process.stdout.write(`PASS: browser C# bots, exact replay, invalid inputs, legal actions, forced moves, bonus-roll waiting, refresh/resume, static subpath. Native WebMCP registry available: ${webMcpAvailable}.\n`);
 } finally { await browser.close(); }

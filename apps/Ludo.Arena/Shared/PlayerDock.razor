@@ -8,7 +8,7 @@
  @if (Active)
  {
   <button class="player-die" data-player="@Player" disabled="@(!CanRoll)" @onclick="OnRoll" aria-label="@(CanRoll ? $"Roll for {Name}" : $"{Name}'s die: {Die}")">
-   <img src="@($"assets/dice-{Math.Clamp(Die, 1, 6)}.png")" alt=""/><span>@(Rolling ? "Rolling…" : CanRoll ? "ROLL" : Die > 0 ? Die.ToString() : "…")</span>
+   <img src="@($"assets/dice-{Math.Clamp(Die, 1, 6)}.png")" alt=""/>
   </button>
  }
 </div>

@@ -32,7 +32,7 @@ public sealed record BoardMotion(ImmutableArray<TokenMotion> Moves)
         BoardPoint Percent(int player, int token, int progress)
         {
             var point = BoardPresentation.Location(after.Players[player].Seat, token, progress);
-            return new(1.4 + point.X * 6.48, 1.4 + point.Y * 6.48);
+            return BoardPresentation.ToPercent(point);
         }
     }
 }

@@ -3,11 +3,11 @@ export function movementFrames(points, captured) {
     const frames = [];
     for (let i = 0; i < points.length; i++) {
         const p = points[i];
-        frames.push({ left: `${p.x}%`, top: `${p.y}%`, transform: 'translate(-50%, -65%) scale(1)', offset: i / (points.length - 1) });
+        frames.push({ left: `${p.x}%`, top: `${p.y}%`, transform: 'translate(-50%, -90%) scale(1)', easing: captured ? 'linear' : 'ease-out', offset: i / (points.length - 1) });
         if (!captured && i < points.length - 1) {
             const q = points[i + 1];
             frames.push({ left: `${(p.x + q.x) / 2}%`, top: `${(p.y + q.y) / 2 - 2.1}%`,
-                transform: 'translate(-50%, -65%) scale(.92, 1.1)', offset: (i + .5) / (points.length - 1) });
+                transform: 'translate(-50%, -90%) scale(.94, 1.06)', easing:'ease-in', offset: (i + .5) / (points.length - 1) });
         }
     }
     return frames;
@@ -30,10 +30,14 @@ export async function playBoardMotion(board, plan, reduced = matchMedia('(prefer
             animations.push(float);
         }
         const animation = token.animate(movementFrames(item.points, item.captured), {
-            duration: item.captured ? Math.min(650, Math.max(160, (item.points.length - 1) * 15)) : (item.points.length - 1) * 125,
+            duration: item.captured ? Math.min(650, Math.max(160, (item.points.length - 1) * 15)) : (item.points.length - 1) * 180,
             easing:'linear',fill:'forwards'
         });
         animations.push(animation); await animation.finished.catch(() => {});
+        // Keep the landing position when the fill animation is released. Blazor's
+        // next render takes ownership with the same coordinates, without a snap back.
+        const end = item.points.at(-1);
+        token.style.left = `${end.x}%`; token.style.top = `${end.y}%`;
     }
     try {
         await Promise.all(plan.moves.filter(m => !m.captured).map(move));
