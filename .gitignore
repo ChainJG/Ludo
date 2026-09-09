@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+.vs/
+node_modules/
+TestResults/
+artifacts/
+*.user
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+apps/Ludo.Arena/wwwroot/lib/
+apps/Ludo.Arena/wwwroot/sample-data/
+apps/Ludo.Arena/wwwroot/favicon.png
+apps/Ludo.Arena/wwwroot/icon-192.png

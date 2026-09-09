@@ -1,0 +1,26 @@
+@using Ludo.Presentation
+<div class="player-dock @(Active ? "active" : "")" style="--seat:@BoardPresentation.HexColours[Seat]">
+ <div class="avatar" aria-hidden="true">
+  @if (Human) { <svg viewBox="0 0 48 48"><circle cx="24" cy="16" r="9"/><path d="M6 45v-5a18 18 0 0 1 36 0v5Z"/></svg> }
+  else { <svg viewBox="0 0 48 48"><path d="M22 4h4v7h9a8 8 0 0 1 8 8v18a7 7 0 0 1-7 7H12a7 7 0 0 1-7-7V19a8 8 0 0 1 8-8h9Z"/><circle cx="16" cy="25" r="4" class="eye"/><circle cx="32" cy="25" r="4" class="eye"/><path d="M17 35h14" class="mouth"/></svg> }
+ </div>
+ <div class="player-name"><strong>@Name</strong><span>@BoardPresentation.Colours[Seat] · @Home/4 home</span></div>
+ @if (Active)
+ {
+  <button class="player-die" data-player="@Player" disabled="@(!CanRoll)" @onclick="OnRoll" aria-label="@(CanRoll ? $"Roll for {Name}" : $"{Name}'s die: {Die}")">
+   <img src="@($"assets/dice-{Math.Clamp(Die, 1, 6)}.png")" alt=""/><span>@(Rolling ? "Rolling…" : CanRoll ? "ROLL" : Die > 0 ? Die.ToString() : "…")</span>
+  </button>
+ }
+</div>
+@code {
+ [Parameter] public int Player { get; set; }
+ [Parameter] public int Seat { get; set; }
+ [Parameter] public string Name { get; set; } = "";
+ [Parameter] public int Home { get; set; }
+ [Parameter] public bool Human { get; set; }
+ [Parameter] public bool Active { get; set; }
+ [Parameter] public bool CanRoll { get; set; }
+ [Parameter] public bool Rolling { get; set; }
+ [Parameter] public int Die { get; set; }
+ [Parameter] public EventCallback OnRoll { get; set; }
+}

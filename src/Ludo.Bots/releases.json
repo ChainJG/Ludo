@@ -1,0 +1,11 @@
+{
+  "src/Ludo.Bots/Versions/ExpectimaxV4.cs": "ac4a18bd0206c3f1498eade48205dfe365efc9418481435981d00dbae8567479",
+  "src/Ludo.Bots/Versions/HeuristicV2.cs": "4af709c79c9e556b26eb66ce23b2a8036f1dcf0191acb2a137c774a6210993ad",
+  "src/Ludo.Bots/Versions/RandomV1.cs": "3a0e97a4eee5f3c2feb16a5dcc93acee953ea337ebd2897e627004939016f40f",
+  "src/Ludo.Bots/Versions/SearchV5.cs": "c3926b516a45f1cbfc69004f77eba584f1a78a307f073fc88bf78755eed2dd1b",
+  "src/Ludo.Bots/Versions/WeightedV3.cs": "d124f53c17cd2fac743b507c0c35fbeec14acb0c9be316fcb5bfe7b8178b4b40",
+  "src/Ludo.Bots/Versions/CompactSearchV6.cs": "947fb47b8471ac0a26d02a42f004acffd03aa212dbfdf12b371bd10d2202adf6",
+  "src/Ludo.Bots/Versions/NeuralV7.cs": "162b0c965db7fb8091fa54d5459d143de8db99c4b064ec2afd5fd358ced7319d",
+  "src/Ludo.Bots/NeuralNetwork.cs": "3acd9b23e28de86439c18e9a082fd18cbb070883d84e5c8d59a0bb602682ba0f",
+  "src/Ludo.Bots/Models/neural-v7.json": "4279e649a2ccc8ea069061f61dfb8dfda4342124bc6993a5745f5ef7351b1b23"
+}

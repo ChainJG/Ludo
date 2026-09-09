@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><ProjectReference Include="../Ludo.Engine/Ludo.Engine.csproj" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Models/neural-v7.json" LogicalName="Ludo.Bots.neural-v7.json" Condition="Exists('Models/neural-v7.json')" /></ItemGroup>
+</Project>

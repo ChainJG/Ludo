@@ -1,0 +1,230 @@
+@using System.Collections.Immutable
+@using System.Globalization
+@using System.Text.Json
+@using Ludo.Bots
+@using Ludo.Engine
+@using Ludo.Runner
+@using Ludo.Presentation
+@using Ludo.Arena.Shared
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+<PageTitle>Ludo · Arena</PageTitle>
+<a class="skip" href="#game-controls">Skip to game controls</a>
+<div class="shell">
+ <header class="masthead"><a class="icon-button" href="#match-options" aria-label="Match settings" @onclick="() => OpenPanel(false)" @onclick:preventDefault>☰</a><div class="brand">LUDO <span>ARENA</span></div><a class="icon-button" href="#game-rules" aria-label="Game rules" @onclick="() => OpenPanel(true)" @onclick:preventDefault>?</a></header>
+ <main class="arena-layout">
+  <section class="play-surface" aria-label="Ludo board">
+   @for (int row = 0; row < 2; row++)
+   {
+    <div class="player-row @(row == 1 ? "bottom-row" : "top-row")">
+     @foreach (int seatNumber in row == 0 ? new[] { 0, 1 } : new[] { 3, 2 })
+     {
+      int player = Enumerable.Range(0, View.Players.Length).FirstOrDefault(p => View.Players[p].Seat == seatNumber, -1);
+      @if (player >= 0)
+      {
+       var seat = View.Players[player]; bool human = match.Seats[player] is null;
+       <PlayerDock Player="player" Seat="seat.Seat" Human="human" Name="@(human ? "You" : BotRegistry.Label(match.Seats[player]!))" Home="@seat.Tokens.Count(t => t == GameEngine.Home)" Active="@(!Terminal && DicePlayer == player)" CanRoll="@(CanRoll && player == View.CurrentPlayer)" Die="@DisplayDie(player)" Rolling="@(rolling && DicePlayer == player)" OnRoll="Roll" />
+      }
+      else { <div class="empty-player"></div> }
+     }
+    </div>
+    @if (row == 0)
+    {
+     <div class="board-wrap" @ref="boardElement">
+      <img class="board-image" src="assets/board.png" alt="Ludo board with eight safe stars and four home lanes" width="1132" height="1110" />
+      @foreach (var token in BoardPresentation.Tokens(VisualView))
+      {
+       var current = token;
+       bool legal = !animating && token.Player == View.CurrentPlayer && Legal.Contains(new Move(token.Token));
+       <button @key="(token.Player, token.Token)" data-token-key="@($"{token.Player}-{token.Token}")" class="token @(legal ? "legal" : "")" style="left:@Pct(token.X);top:@Pct(token.Y);--seat:@BoardPresentation.HexColours[token.Seat];--pulse:@(900 + token.Token * 170)ms;--phase:@(-token.Token * 230)ms" aria-label="@(token.Description + (legal ? ", legal move" : ""))" disabled="@(!CanMove || !legal)" @onclick="() => Choose(current.Token)">
+        <img src="@($"assets/token-{BoardPresentation.Colours[token.Seat].ToLowerInvariant()}.png")" alt=""/><span>@(token.Token + 1)</span>
+       </button>
+      }
+     </div>
+    }
+   }
+   <div class="turn-banner" id="game-controls"><span class="turn-light" style="--seat:@BoardPresentation.HexColours[View.Players[View.CurrentPlayer].Seat]"></span><p role="status" aria-live="polite">@announcement</p><span class="turn-number">Turn @View.TurnNumber</span></div>
+   @if (CanMove)
+   {
+    <div class="legal-moves" aria-label="Legal moves">@foreach (var move in Legal) { var choice = move; <button @onclick="() => Choose(choice.TokenId)"><img src="@($"assets/token-{BoardPresentation.Colours[View.Players[View.CurrentPlayer].Seat].ToLowerInvariant()}.png")" alt=""/><span>Move @(move.TokenId + 1)</span></button> }</div>
+   }
+   @if (Terminal) { <div class="winner-panel"><h1>Game complete!</h1><ol class="finishing">@foreach (int player in View.FinishingOrder) { <li>@BoardPresentation.Colours[View.Players[player].Seat] <small>@View.Players[player].Status</small></li> }</ol></div> }
+   @if (busy) { <button class="text-button" @onclick="PauseBots">Pause bots</button> }
+   else if (!IsHuman && !Terminal && savedGame is null) { <button class="primary" @onclick="ResumeBots">Continue bots</button> }
+   @if (!string.IsNullOrEmpty(error)) { <p class="error" role="alert">@error</p> }
+   @if (savedGame is not null) { <section class="resume"><strong>Your game is waiting</strong><button @onclick="Resume" disabled="@(busy || animating)">Resume game</button></section> }
+  </section>
+  <aside class="game-panel" aria-label="Match options">
+   <details class="setup" id="match-options"><summary>Match settings</summary><fieldset disabled="@(busy || animating)">
+    <div class="setup-row"><label>Players<select @bind="playerCount"><option value="2">2 players</option><option value="4">4 players</option></select></label><label>Seed<input type="number" min="0" max="4294967295" @bind="seed" /></label></div>
+    @for (int p = 0; p < playerCount; p++) { int index = p; int seat = playerCount == 2 ? p * 2 : p;
+     <label class="seat-select">@BoardPresentation.Colours[seat]<select @bind="selections[index]"><option value="human">Human</option>@foreach (var bot in BotRegistry.All.Where(b => b.BrowserRecommended)) { <option value="@bot.Key">@bot.Label</option> }@if (customNeural is not null) { <option value="custom-neural">My trained network</option> }</select></label>
+    }
+    <label class="model-import">Load trained bot <InputFile OnChange="ImportNeural" accept=".json" /></label>
+    @if (customNeural is not null) { <p class="muted">@customNeural.Model!.Name loaded. Select it for a bot seat.</p> }
+    <button class="primary" @onclick="NewGame" disabled="@(!ready)">New game</button>
+   </fieldset><label class="check"><input type="checkbox" @bind="fastBots" /> Fast bots · skip their animations</label><label class="delay">Bot delay <span>@delay ms</span><input type="range" min="0" max="1500" step="100" @bind="delay" /></label></details>
+   <details class="rules" id="game-rules"><summary>How to play</summary><p>Roll a six to leave base. Sixes, captures and finishing a token earn another roll. The third consecutive six ends your turn; your first two moves stand.</p><p>All eight stars are safe. Matching pairs are protected. Other pieces can pass or join them. Splitting a pair never causes a capture.</p><p>New arrivals capture opposing single pieces on ordinary squares. Finish with an exact roll. No legal move passes the turn.</p></details>
+   <details class="board-state"><summary>Read the board</summary><ul>@foreach (var token in BoardPresentation.Tokens(View)) { <li>@token.Description</li> }</ul></details>
+   <details><summary>Recent moves</summary><ol class="move-log">@foreach (var entry in moveLog.AsEnumerable().Reverse().Take(8)) { <li>@entry</li> }@if (moveLog.Count == 0) { <li>Your first roll starts the story.</li> }</ol></details>
+   <details><summary>Your record</summary><p class="muted">Finishing ahead of a bot counts as a win against it.</p>@if (records.Count == 0) { <p>Complete a game to start your record.</p> } else { <table><thead><tr><th>Opponent</th><th>Wins</th><th>Losses</th></tr></thead><tbody>@foreach (var row in records) { <tr><td>@BotRegistry.Label(new(row.Key))</td><td>@row.Value.Wins</td><td>@row.Value.Losses</td></tr> }</tbody></table> }</details>
+   <button class="text-button" @onclick="Export" disabled="@(!ready)">↓ Download replay</button><p class="local-tag">Saved on this device</p>
+  </aside>
+ </main>
+</div>
+@code {
+ private MatchSession match = new(new() { PlayerCount = 2 }, 1, [null, new("v2")]);
+ private IJSObjectReference? module;
+ private BrowserBotExecutor? executor;
+ private DotNetObjectReference<Home>? agentHandle;
+ private CancellationTokenSource run = new();
+ private ElementReference boardElement;
+ private GameStateView? visualView;
+ private GameStateView VisualView => visualView ?? View;
+ private bool animating, rolling;
+ private int? dicePlayer;
+ private int DicePlayer => dicePlayer ?? View.CurrentPlayer;
+ private int DisplayDie(int player) => View.LastEvent.PlayerIndex == player ? View.LastEvent.Die : 0;
+ private BotSpec? customNeural;
+ private async Task OpenPanel(bool rules) { if (module is not null) await module.InvokeVoidAsync("openPanel", rules ? "game-rules" : "match-options"); }
+ private MatchRecord? savedGame;
+ private Dictionary<string, LocalRecord> records = [];
+ private readonly List<string> moveLog = [];
+ private string[] selections = ["human", "v2", "v3", "v4"];
+ private int playerCount = 2, delay = 600;
+ private uint seed = 1;
+ private bool busy, ready, fastBots, botsPaused, counted;
+ private string announcement = "Roll the die to begin.", error = "";
+ private GameStateView View => match.State.View;
+ private bool Terminal => GameEngine.IsTerminal(match.State);
+ private bool IsHuman => match.Seats[View.CurrentPlayer] is null;
+ private bool CanRoll => ready && savedGame is null && !busy && !animating && !Terminal && IsHuman && View.Phase == GamePhase.AwaitingRoll;
+ private bool CanMove => ready && savedGame is null && !busy && !animating && !Terminal && IsHuman && View.Phase == GamePhase.AwaitingMove;
+ private ImmutableArray<Move> Legal => GameEngine.GetLegalMoves(View);
+ private static string Pct(double value) => value.ToString("F3", CultureInfo.InvariantCulture) + "%";
+
+ protected override async Task OnAfterRenderAsync(bool firstRender)
+ {
+  if (!firstRender) return;
+  try {
+   module = await JS.InvokeAsync<IJSObjectReference>("import", "./arena.js"); executor = new(module); ready = true;
+   agentHandle = DotNetObjectReference.Create(this);
+   await module.InvokeVoidAsync("registerGameTools", agentHandle);
+   var json = await module.InvokeAsync<string?>("load");
+   if (json is not null) {
+    var saved = JsonSerializer.Deserialize<SavedArena>(json, ArenaJson.Options) ?? throw new FormatException("Invalid saved game.");
+    _ = saved.Match.Recording.Replay(); records = saved.Records ?? []; savedGame = saved.Match;
+    announcement = "Resume your saved game, or start a new one.";
+    savedCounted = saved.Counted;
+   }
+  } catch (Exception exception) { error = "Saved game unavailable: " + exception.Message; }
+  StateHasChanged();
+ }
+ private bool savedCounted;
+ private async Task NewGame() => await Guard(async () => {
+  if (busy || animating) return;
+  match = new(new() { PlayerCount = playerCount }, seed,
+   selections.Take(playerCount).Select(value => value == "human" ? null : value == "custom-neural" ? customNeural : new BotSpec(value)).ToImmutableArray());
+  counted = false; savedGame = null; moveLog.Clear(); botsPaused = false; announcement = "New game ready.";
+  await Persist(); await RunBots();
+ });
+ private async Task Resume() => await Guard(async () => {
+  if (savedGame is null || busy) return;
+  match = MatchSession.Restore(savedGame); counted = savedCounted; savedGame = null; moveLog.Clear();
+  announcement = BoardPresentation.Describe(View); await RunBots();
+ });
+ private async Task Roll() => await Guard(async () => {
+  if (!CanRoll) return; var before = View;
+  try { await RollAnimation(); match.Roll(); await Changed(before); }
+  finally { animating = false; rolling = false; dicePlayer = null; StateHasChanged(); }
+  await RunBots();
+ });
+ private async Task Choose(int token) => await Guard(async () => {
+  if (!CanMove) return; var before = View; animating = true;
+  try { match.Move(new(token)); await Changed(before); }
+  finally { animating = false; dicePlayer = null; StateHasChanged(); }
+  await RunBots();
+ });
+ private async Task RollAnimation()
+ {
+  animating = true; rolling = true; dicePlayer = View.CurrentPlayer; StateHasChanged(); await Task.Yield();
+  if (module is not null) await module.InvokeVoidAsync("animateDice", dicePlayer.Value);
+  rolling = false;
+ }
+ private async Task ImportNeural(InputFileChangeEventArgs args) => await Guard(async () => {
+  using var stream = args.File.OpenReadStream(256 * 1024);
+  using var reader = new StreamReader(stream);
+  LoadNeuralModel(await reader.ReadToEndAsync());
+ });
+ [JSInvokable] public string LoadNeuralModel(string json) {
+  if (busy || animating) throw new InvalidOperationException("Wait for the current move to finish.");
+  if (json.Length > 256 * 1024) throw new FormatException("The model file is too large.");
+  var spec = JsonSerializer.Deserialize<BotSpec>(json, RunnerJson.Options) ?? throw new FormatException("Invalid bot file.");
+  if (spec.Key != "v7" || spec.Model is null) throw new FormatException("Choose an exported neural bot JSON file.");
+  _ = BotRegistry.Create(spec); customNeural = spec; StateHasChanged(); return spec.Model.Name;
+ }
+ [JSInvokable] public async Task<GameReadout> StartGame(int players, string[] seats, uint gameSeed) {
+  if (busy || animating) throw new InvalidOperationException("Wait for the current move to finish.");
+  if (players is not (2 or 4) || seats.Length != players || seats.Any(s => s != "human" && !(s == "custom-neural" && customNeural is not null)
+      && !BotRegistry.All.Any(b => b.Key == s && b.BrowserRecommended))) throw new ArgumentException("Choose two or four valid player seats.");
+  playerCount = players; seed = gameSeed; for (int i = 0; i < seats.Length; i++) selections[i] = seats[i];
+  await NewGame(); return ReadGame();
+ }
+ private async Task ResumeBots() { botsPaused = false; await Guard(RunBots); }
+ private void PauseBots() { botsPaused = true; run.Cancel(); }
+ private async Task RunBots()
+ {
+  if (executor is null || busy || botsPaused) return;
+  run.Dispose(); run = new(); busy = true;
+  try {
+   while (!Terminal && !IsHuman && !botsPaused) {
+    StateHasChanged(); await Task.Delay(fastBots ? 1 : delay, run.Token);
+    var before = View;
+    try {
+     if (!fastBots && View.Phase == GamePhase.AwaitingRoll) await RollAnimation();
+     run.Token.ThrowIfCancellationRequested();
+     await match.AdvanceAsync(executor, run.Token); await Changed(before, fastBots);
+    } finally { animating = false; rolling = false; dicePlayer = null; }
+   }
+  } catch (OperationCanceledException) { if (module is not null) await module.InvokeVoidAsync("stopWorker"); }
+  finally { busy = false; StateHasChanged(); }
+ }
+ private async Task Changed(GameStateView? before = null, bool skipMotion = false)
+ {
+  announcement = BoardPresentation.Describe(View); moveLog.Add(announcement);
+  if (moveLog.Count > 100) moveLog.RemoveAt(0);
+  if (match.Incidents.LastOrDefault() is { } incident) error = incident.Reason;
+  if (Terminal && !counted) {
+   for (int human = 0; human < match.Seats.Length; human++) {
+    if (match.Seats[human] is not null) continue;
+    for (int bot = 0; bot < match.Seats.Length; bot++) {
+     if (match.Seats[bot] is not { } spec) continue;
+     bool win = View.FinishingOrder.IndexOf(human) < View.FinishingOrder.IndexOf(bot);
+     var previous = records.GetValueOrDefault(spec.Key, new(0,0));
+     records[spec.Key] = new(previous.Wins + (win ? 1 : 0), previous.Losses + (win ? 0 : 1));
+    }
+   }
+   counted = true;
+  }
+  await Persist();
+  if (before is not null && !skipMotion && module is not null && View.LastEvent.Kind == EventKind.Moved) {
+   animating = true; dicePlayer ??= before.CurrentPlayer; visualView = before; StateHasChanged(); await Task.Yield();
+   try { await module.InvokeVoidAsync("animateMove", boardElement, JsonSerializer.Serialize(BoardMotion.Between(before, View), ArenaJson.Options)); }
+   finally { visualView = null; }
+  }
+  StateHasChanged();
+ }
+ private async Task Persist()
+ {
+  if (module is null) return;
+  try { await module.InvokeVoidAsync("save", JsonSerializer.Serialize(new SavedArena(match.Snapshot(), records, counted), ArenaJson.Options)); }
+  catch (JSException) { error = "Browser storage is unavailable. Download a replay to keep this game."; }
+ }
+ private async Task Export() => await Guard(async () => { if (module is not null) await module.InvokeVoidAsync("download", $"ludo-{match.Seed}.json", JsonSerializer.Serialize(match.Snapshot(), ArenaJson.Options)); });
+ private async Task Guard(Func<Task> action) { try { error = ""; await action(); } catch (Exception exception) { error = exception.Message; } }
+ [JSInvokable] public GameReadout ReadGame() => new(View, Legal, CanRoll, CanMove, busy || animating, error, savedGame is not null);
+ [JSInvokable] public async Task<GameReadout> ResumeGame() { if (savedGame is null || busy) throw new InvalidOperationException("No saved game can be resumed now."); await Resume(); return ReadGame(); }
+ [JSInvokable] public async Task<GameReadout> RollDie() { if (!CanRoll) throw new InvalidOperationException("The human player cannot roll now."); await Roll(); return ReadGame(); }
+ [JSInvokable] public async Task<GameReadout> MoveToken(int token) { if (!CanMove || !Legal.Contains(new Move(token))) throw new ArgumentException("That token cannot move now."); await Choose(token); return ReadGame(); }
+ public async ValueTask DisposeAsync() { run.Cancel(); if (executor is not null) await executor.DisposeAsync(); if (module is not null) { await module.InvokeVoidAsync("unregisterGameTools"); await module.DisposeAsync(); } agentHandle?.Dispose(); run.Dispose(); }
+}

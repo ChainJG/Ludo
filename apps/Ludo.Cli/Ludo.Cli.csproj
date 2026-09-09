@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Ludo.Training/Ludo.Training.csproj" />
+    <ProjectReference Include="../../src/Ludo.Native/Ludo.Native.csproj" />
+    <ProjectReference Include="../Ludo.BotHost/Ludo.BotHost.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="CopyBotHost" AfterTargets="Build">
+    <ItemGroup><BotHostFiles Include="../Ludo.BotHost/bin/$(Configuration)/net10.0/*" /></ItemGroup>
+    <Copy SourceFiles="@(BotHostFiles)" DestinationFolder="$(OutDir)bot-host" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishBotHost" AfterTargets="Publish">
+    <ItemGroup><BotHostPublishFiles Include="../Ludo.BotHost/bin/$(Configuration)/net10.0/*" /></ItemGroup>
+    <Copy SourceFiles="@(BotHostPublishFiles)" DestinationFolder="$(PublishDir)bot-host" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

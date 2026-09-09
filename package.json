@@ -1,0 +1,21 @@
+{
+  "name": "ludo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "dotnet test Ludo.sln -c Release",
+    "build": "dotnet build Ludo.sln -c Release",
+    "dev": "dotnet run --project apps/Ludo.Arena -c Release --no-launch-profile --urls http://localhost:5251",
+    "warzone": "dotnet run --project apps/Ludo.Warzone -c Release",
+    "test:browser": "npm test --prefix tests/browser",
+    "publish:arena": "pwsh -NoProfile -File scripts/publish-arena.ps1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}

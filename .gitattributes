@@ -1,0 +1,10 @@
+* text=auto
+*.cs text eol=lf
+*.csproj text eol=lf
+*.json text eol=lf
+*.razor text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.yml text eol=lf
+*.ps1 text eol=lf
+*.png binary

@@ -1,0 +1,92 @@
+name: Publish Arena to GitHub Pages
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/Ludo.Arena/**'
+      - 'apps/Ludo.Cli/**'
+      - 'apps/Ludo.BotHost/**'
+      - 'src/**'
+      - 'assets/ludo/**'
+      - 'tests/Ludo.Engine.Tests/**'
+      - 'tests/Ludo.Runner.Tests/**'
+      - 'tests/Ludo.HostFixture/**'
+      - 'tests/browser/**'
+      - 'scripts/**'
+      - '.github/workflows/pages.yml'
+      - 'Directory.Build.props'
+      - 'global.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.301'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/configure-pages@v5
+        id: pages
+      - run: dotnet workload install wasm-tools
+      - name: Verify the shared core
+        shell: pwsh
+        run: |
+          ./scripts/verify-architecture.ps1
+          dotnet test tests/Ludo.Engine.Tests -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/Ludo.Runner.Tests -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - run: dotnet publish apps/Ludo.Arena/Ludo.Arena.csproj -c Release -o artifacts/arena
+      - name: Prepare native replay fixtures
+        shell: pwsh
+        run: |
+          dotnet build apps/Ludo.Cli -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet apps/Ludo.Cli/bin/Release/net10.0/Ludo.Cli.dll match --bots v1,v2 --seed 12345 --out artifacts/match-native.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet apps/Ludo.Cli/bin/Release/net10.0/Ludo.Cli.dll replay --file artifacts/match-native.json --state-out artifacts/native-final.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet apps/Ludo.Cli/bin/Release/net10.0/Ludo.Cli.dll match --players 4 --bots v1,v2,v3,v4 --seed 45678 --out artifacts/match-four.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet apps/Ludo.Cli/bin/Release/net10.0/Ludo.Cli.dll replay --file artifacts/match-four.json --state-out artifacts/four-final.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Set the repository or custom-domain path
+        shell: pwsh
+        env:
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: ./scripts/prepare-pages.ps1 -BasePath "$env:PAGES_BASE_PATH/"
+      - run: npm ci --prefix tests/browser
+      - run: npm exec --prefix tests/browser -- playwright install --with-deps chromium
+      - name: Check the published game before deployment
+        shell: pwsh
+        env:
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+        run: |
+          $prefix = "$env:PAGES_BASE_PATH/"
+          $env:ARENA_URL = "http://127.0.0.1:5252$prefix"
+          $server = Start-Process node -ArgumentList @('tests/browser/serve.mjs', 'artifacts/arena/wwwroot', $prefix, '5252') -PassThru
+          try { npm test --prefix tests/browser; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+          finally { Stop-Process -Id $server.Id -ErrorAction SilentlyContinue }
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: artifacts/arena/wwwroot
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
