@@ -67,7 +67,9 @@ jobs:
           PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
         run: ./scripts/prepare-pages.ps1 -BasePath "$env:PAGES_BASE_PATH/"
       - run: npm ci --prefix tests/browser
-      - run: npm exec --prefix tests/browser -- playwright install --with-deps chromium
+      # ubuntu-latest already includes Chrome's system libraries. Install the pinned
+      # test browser without refreshing unrelated third-party apt repositories.
+      - run: npm exec --prefix tests/browser -- playwright install chromium
       - name: Check the published game before deployment
         shell: pwsh
         env:
