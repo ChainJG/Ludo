@@ -42,10 +42,11 @@ public class FableTests
     [Fact]
     public void LeavesASharedStarWithASixBecauseTheBonusRollCarriesItOutOfRange()
     {
-        // Red progress 34 shares star 8 with Yellow's token and can keep it pinned there by shuffling its two
-        // home-lane tokens. With three runners out, the six is spent on escaping (8 -> 14, then the bonus roll
-        // carries the token beyond a single die) rather than on a fourth launch or a quiet advance.
-        Assert.Equal(new Move(0), Pick(Position(6, [8, 21, 30, -1], [34, 52, 53, -1], 1)));
+        // Red progress 34 shares star 8 with Yellow's token, and Red has three other free runners, so Yellow is
+        // the side that will eventually be forced off the star. The six is spent on the escape (8 -> 14, then the
+        // bonus roll carries the token beyond a single die) instead of the quiet advance 30 -> 36.
+        // Search v5 and ChatGPT Tactician v8 both prefer the quiet advance here.
+        Assert.Equal(new Move(0), Pick(Position(6, [8, 30, 56, 56], [34, 5, 15, 20], 1)));
     }
 
     [Fact]

@@ -5,10 +5,13 @@ using Ludo.Engine;
 namespace Ludo.Bots.Versions;
 
 // All quantities are in pips (track steps). Temperature converts pip differences into win chances.
-public sealed record FableParameters(double LaunchPenalty = 8, double HomeBonus = 4, double LaneBonus = 2, double StarBonus = 1.5,
-    double RiskWeight = 1, double CaptureTempo = 3.5, double MoverDiscount = 0.5, double FutureWeight = 3,
-    double MobilityWeight = 3, double CampWeight = 2, double SniperWeight = 0.5, double Temperature = 25,
-    double PinWeight = 0, double DeployBonus = 0, double TempoBonus = 0);
+// Defaults were chosen by mirrored-seed A/B tournaments (1,000–4,000 games per variant) against Search v5 and
+// ChatGPT Tactician v8. Launch penalty, mover discount, pin weight and deploy bonus each measured better than the
+// initial guesses; explicit camp and sniper bonuses measured worse because the risk model already prices those
+// captures, so they default to zero and remain available for experiments.
+public sealed record FableParameters(double LaunchPenalty = 14, double HomeBonus = 4, double LaneBonus = 2, double StarBonus = 1.5,
+    double RiskWeight = 1, double CaptureTempo = 3.5, double MoverDiscount = 0.9, double MobilityWeight = 3,
+    double CampWeight = 0, double SniperWeight = 0, double Temperature = 25, double PinWeight = 0.3, double DeployBonus = 5);
 
 // Fable v9. Max-n expectimax through the shared engine, so every hypothetical roll and move (bonus rolls
 // after a six, capture or finish, third-six forfeits and every rule toggle) is resolved by the rules
@@ -17,7 +20,10 @@ public sealed record FableParameters(double LaunchPenalty = 8, double HomeBonus 
 // capture an opponent could make before that player moves again (direct rolls and six-then-roll chains),
 // converted into win chances with a softmax. Win chances make the search risk-averse when ahead and
 // risk-seeking when behind, which a linear material score cannot express.
-public sealed class FableV9(FableParameters? parameters = null, int turns = 1, int budget = 2000) : IBot
+// The node budget is per two players: 1,000 nodes measured identical to 2,000 in two-player games (55.5% vs 55.4%
+// against v8 over 2,000 games), while four-player games, whose reply trees are three times wider, keep 2,000. The
+// worst native decision stays near 3 ms, well inside the 50 ms limit even on a slow, busy CI runner.
+public sealed class FableV9(FableParameters? parameters = null, int turns = 1, int budget = 1000) : IBot
 {
     private const int Track = GameEngine.HomeLaneStart - 1; // 50: last shared-track step
     private readonly FableParameters p = parameters ?? new();
@@ -28,12 +34,12 @@ public sealed class FableV9(FableParameters? parameters = null, int turns = 1, i
     public BotChoice Analyze(GameStateView view, ImmutableArray<Move> legalMoves, IRng rng)
     {
         if (legalMoves.IsEmpty) throw new ArgumentException("A bot requires at least one legal move.");
-        int me = view.CurrentPlayer, nodes = 0;
+        int me = view.CurrentPlayer, nodes = 0, total = budget * view.Players.Length / 2;
         var scores = ImmutableArray.CreateBuilder<MoveScore>(legalMoves.Length);
         foreach (var move in legalMoves)
         {
             var after = GameEngine.ApplyMove(view, move);
-            int allowance = budget / legalMoves.Length, initial = allowance;
+            int allowance = total / legalMoves.Length, initial = allowance;
             double value = Continue(after, me, turns + 1, ref allowance)[me];
             nodes += initial - allowance + 1;
             var evt = after.LastEvent;
@@ -103,8 +109,8 @@ public sealed class FableV9(FableParameters? parameters = null, int turns = 1, i
     private double[] Leaf(GameStateView state)
     {
         int n = state.Players.Length, placed = state.FinishingOrder.Length, active = 0;
-        var strength = new double[n];
-        var share = new double[n];
+        Span<double> strength = stackalloc double[n];
+        Span<double> share = stackalloc double[n];
         var values = new double[n];
         double best = double.NegativeInfinity, mean = 0, sum = 0;
         for (int i = 0; i < n; i++)
@@ -140,13 +146,7 @@ public sealed class FableV9(FableParameters? parameters = null, int turns = 1, i
         var p = parameters ?? new();
         var rules = state.Rules;
         var player = state.Players[index];
-        int seat = player.Seat, mover = state.CurrentPlayer, enemyActive = 0, opponents = 0;
-        for (int o = 0; o < state.Players.Length; o++)
-        {
-            if (o == index || state.Players[o].Status != PlayerStatus.Playing) continue;
-            opponents++;
-            foreach (int r in state.Players[o].Tokens) if (r < GameEngine.HomeLaneStart) enemyActive++;
-        }
+        int seat = player.Seat, mover = state.CurrentPlayer;
         double total = 0;
         foreach (int q in player.Tokens)
         {
@@ -155,10 +155,10 @@ public sealed class FableV9(FableParameters? parameters = null, int turns = 1, i
             total += q;
             if (q >= GameEngine.HomeLaneStart) { total += p.LaneBonus; continue; }
             int square = GameEngine.TrackIndex(seat, q);
-            // Every enemy token still on the shared track will have to be passed or outrun.
-            if (opponents > 0) total -= p.FutureWeight * (Track - q) / (double)Track * enemyActive / (4.0 * opponents);
             bool star = rules.SafeStars && GameEngine.IsSafeSquare(square);
-            bool stacked = rules.ProtectStacks && player.Tokens.Count(t => t == q) >= 2;
+            int sharing = 0;
+            foreach (int t in player.Tokens) if (t == q) sharing++;
+            bool stacked = rules.ProtectStacks && sharing >= 2;
             if (star) total += p.StarBonus;
             if (star || stacked)
             {
@@ -168,10 +168,10 @@ public sealed class FableV9(FableParameters? parameters = null, int turns = 1, i
                     if (o == index || state.Players[o].Status != PlayerStatus.Playing) continue;
                     var enemy = state.Players[o];
                     int entry = GameEngine.TrackIndex(enemy.Seat, 0);
-                    // Spawn camping: every token the enemy launches must step off its entry into this token's range.
-                    if (star && square == entry) total += p.CampWeight * enemy.Tokens.Count(t => t == GameEngine.Base);
                     foreach (int r in enemy.Tokens)
                     {
+                        // Spawn camping: every token the enemy launches must step off its entry into this token's range.
+                        if (star && square == entry && r == GameEngine.Base) total += p.CampWeight;
                         if (r >= GameEngine.HomeLaneStart) continue;
                         int from = r == GameEngine.Base ? entry : GameEngine.TrackIndex(enemy.Seat, r);
                         int gap = (square - from + GameEngine.TrackLength) % GameEngine.TrackLength;
@@ -199,15 +199,13 @@ public sealed class FableV9(FableParameters? parameters = null, int turns = 1, i
             if (index == mover) capture *= p.MoverDiscount; // the mover can still react first
             total -= capture * (q + p.LaunchPenalty + p.CaptureTempo) * p.RiskWeight;
         }
-        int movable = 0;
+        int movable = 0, runners = 0;
         for (int die = 1; die <= 6; die++)
             foreach (int q in player.Tokens)
                 if (q == GameEngine.Base ? die == 6 || !rules.LaunchRequiresSix : q != GameEngine.Home && q + die <= GameEngine.Home) { movable++; break; }
+        foreach (int q in player.Tokens) if (q != GameEngine.Base && q != GameEngine.Home) runners++;
         // Runners on the board give choices; the first ones matter most.
-        int runners = player.Tokens.Count(t => t != GameEngine.Base && t != GameEngine.Home);
         total += p.DeployBonus * (runners switch { 0 => 0, 1 => 1, 2 => 1.5, 3 => 1.7, _ => 1.8 });
-        // Having the move is worth roughly one roll; this keeps leaves cut before and after a turn comparable.
-        if (index == mover) total += p.TempoBonus;
         return total + p.MobilityWeight * movable / 6.0;
     }
 

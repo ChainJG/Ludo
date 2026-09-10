@@ -1,3 +1,15 @@
+# Validation — 9 September 2026: Fable v9
+
+Engine version 1.0.0, unchanged. `Versions/FableV9.cs` is pinned in `src/Ludo.Bots/releases.json`. Arena's bot budget was raised from 50 ms to 2,000 ms per decision; every bot still uses a deterministic node budget, so the larger limit only avoids false disqualifications on slow devices.
+
+- Automated tests: 55 engine tests and 39 runner tests passed, including new scenario tests for kill priority, keeping a sniper parked on a star, camping an enemy entry, leaving a shared star with a six when the bot is the side that would be forced off first, evaluation symmetry and a bounded node count.
+- Architecture guard passed with the new manifest entry. Arena, Warzone and the CLI built with zero warnings.
+- Process-isolated gate, seed 880301, 500 games, 50 ms budget: Fable v9 beat Heuristic v2 355/500 (71.0%; Wilson 66.9–74.8%; conservative paired-seed lower bound 62.4%); zero incidents; **PASS**. Against ChatGPT Tactician v8 on the same suite it won 272/500 (54.4%; Wilson 50.0–58.7%; paired lower bound 45.8%), ahead but below the gate's 55% promotion threshold; zero incidents.
+- Inline lab tournaments with mirrored seeds (2,000 games each, fresh seeds): 68.5% vs v2, 59.5% vs v5, 55.7% vs v8. Four-player, one Fable seat against three copies of a rival, 400 games: 31.0% of wins vs v8 and 30.7% vs v5 (an even share is 25%).
+- Parameter selection used 1,000–4,000-game A/B runs per variant. Launch penalty was the dominant lever; a future-exposure term and explicit camp/sniper bonuses measured worse and were removed or zeroed; a two-turn search was not better than one opponent turn. A 1,000-node budget per two players measured identical to 2,000.
+- Native timing on the development machine: mean 0.2–0.8 ms per decision, worst 2.8 ms (two-player) and 2.3 ms (four-player, 2,000 nodes).
+- Browser suite on the published `/Ludo/` build: identical native/browser choices, scores and node counts for v1–v7 and v9; Fable v9 took 4.0 ms in the opening and 28.1 ms in the crowded four-player position in headless Chromium. Replay, resume, forced-move, bonus-roll and effects checks passed.
+
 # Validation — 8 September 2026
 
 Built on Windows with .NET SDK 10.0.301 and Node 24.19.0. Engine version: 1.0.0. Released bot sources v1–v6 are pinned in `src/Ludo.Bots/releases.json`.

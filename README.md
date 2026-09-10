@@ -80,6 +80,8 @@ The regression gate requires a win rate strictly above 55% and a Wilson 95% lowe
 
 Tuning produces experimental weight configurations, not a newly released bot. Use a separate evaluation seed suite before adopting them. Higher version numbers are available for comparison and are not claims of greater strength.
 
+**Fable v9** (`Versions/FableV9.cs`) is a max-n expectimax that resolves every bonus-roll chain (six, capture, finish) through the engine before an opponent's full reply, then scores leaves with a probabilistic race model: material in pips minus the expected loss from every capture an opponent could make before that player moves again, including six-then-roll chains and launches, converted to win chances with a softmax. Its parameters were chosen by mirrored-seed A/B tournaments. On the CI gate suite (seed 880301, 500 isolated-process games, 50 ms budget) it beat Heuristic v2 with 355 wins (71.0%; Wilson 66.9–74.8%; paired lower bound 62.4%; PASS) and ChatGPT Tactician v8 with 272 wins (54.4%; Wilson 50.0–58.7%), and it won 59–62% of two-player games against Search v5 across several 2,000-game lab runs. In four-player games with one Fable seat against three copies of v8 or v5 it won 31% of 400 games, where an even share is 25%. The worst native decision measured under 3 ms.
+
 Arena offers v1–v4, Compact search v6, experimental Neural v7 and Fable v9. Search v5 remains available in Warzone and the CLI: its deeper search exceeded the original 50 ms browser budget. Arena now allows bots 2,000 ms per decision because browser speed varies widely by device; every bot still uses a deterministic node budget, so a larger time limit only avoids false disqualifications. Arena defaults to Heuristic v2, which passed the held-out baseline gate. Compact search v6 limits expansion to 72 nodes; it is an experimental alternative, not a promoted champion.
 
 Warzone rounds tournament game counts up to a complete set of seat rotations and shows the adjusted count before running.
@@ -101,6 +103,6 @@ The engine has no package or project dependencies. Both front ends consume the s
 
 ## Released bot versions
 
-`Versions/RandomV1.cs` through `Versions/NeuralV7.cs` are frozen by SHA-256 in `src/Ludo.Bots/releases.json`. CI checks both the current manifest and the base branch's manifest, so modifying both an old file and its hash does not bypass the guard. Add a new version file and registry entry for improvements. Shared behavior used by released bots must remain compatible; copy an evaluator into a new version if its semantics change. Engine behavior changes require an engine version increment and appropriately separated benchmark/replay data.
+`Versions/RandomV1.cs` through `Versions/NeuralV7.cs` and `Versions/FableV9.cs` are frozen by SHA-256 in `src/Ludo.Bots/releases.json`. CI checks both the current manifest and the base branch's manifest, so modifying both an old file and its hash does not bypass the guard. Add a new version file and registry entry for improvements. Shared behavior used by released bots must remain compatible; copy an evaluator into a new version if its semantics change. Engine behavior changes require an engine version increment and appropriately separated benchmark/replay data.
 
 See [the agreed rules](docs/RULES.md) and [validation notes](docs/VALIDATION.md).
