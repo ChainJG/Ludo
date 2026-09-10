@@ -86,7 +86,7 @@
 @code {
  // Browser workers vary widely in speed; bots use deterministic node budgets, so a generous time limit only avoids false disqualifications.
  private const double BotBudgetMilliseconds = 2000;
- private MatchSession match = new(new() { PlayerCount = 2 }, 1, [null, new("v2")], BotBudgetMilliseconds);
+ private MatchSession match = new(new() { PlayerCount = 2 }, 1, [null, new("v9")], BotBudgetMilliseconds);
  private IJSObjectReference? module;
  private BrowserBotExecutor? executor;
  private DotNetObjectReference<Home>? agentHandle;
@@ -113,8 +113,8 @@
  private MatchRecord? savedGame;
  private Dictionary<string, LocalRecord> records = [];
  private readonly List<string> moveLog = [];
- private string[] selections = ["human", "v2", "v3", "v4"];
- private int playerCount = 2, delay = 600;
+ private string[] selections = ["human", "v9", "v3", "v4"];
+ private int playerCount = 2, delay = 1500;
  private uint seed = 1;
  private bool busy, ready, fastBots, botsPaused, counted;
  private string announcement = "Roll the die to begin.", error = "";
