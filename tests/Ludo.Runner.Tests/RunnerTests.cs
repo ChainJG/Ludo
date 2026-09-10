@@ -18,7 +18,7 @@ public class RunnerTests
         Assert.Equal(new Move(0), choice.Move);
     }
     [Theory]
-    [InlineData("v1")] [InlineData("v2")] [InlineData("v3")] [InlineData("v4")] [InlineData("v5")] [InlineData("v6")] [InlineData("v7")] [InlineData("v9")]
+    [InlineData("v1")] [InlineData("v2")] [InlineData("v3")] [InlineData("v4")] [InlineData("v5")] [InlineData("v6")] [InlineData("v7")] [InlineData("v8")] [InlineData("v9")]
     public void EveryBotIsDeterministicLegalAndCannotMutateView(string key)
     {
         var view = GameEngine.ResolveRoll(GameEngine.CreateGame(new(), 5).View, 6);

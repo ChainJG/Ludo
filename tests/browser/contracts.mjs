@@ -52,7 +52,7 @@ try {
  complex.rules.playerCount = 4; complex.currentPlayer = 0; complex.die = 6; complex.consecutiveSixes = 1;
  complex.players = [[2,15,28,43],[1,12,29,40],[5,14,27,39],[3,18,29,45]].map((tokens,seat) => ({ seat,tokens,status:0 }));
  for (const [scenario, view] of [['opening', position.state], ['four-player middle game', complex]])
- for (const key of ['v1','v2','v3','v4','v5','v6','v7','v9']) {
+ for (const key of ['v1','v2','v3','v4','v5','v6','v7','v8','v9']) {
   const request = { bot:{key}, view, seed:9876 };
   await fs.writeFile(requestFile, JSON.stringify(request));
   const native = JSON.parse(execFileSync('dotnet', [cli, 'analyze', '--file', requestFile], { encoding:'utf8' }));

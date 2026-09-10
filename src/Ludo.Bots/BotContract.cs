@@ -30,7 +30,7 @@ public static class BotRegistry
         new("v5", "search", 5, "Search v5", "Two-roll max-n expectimax; retained for desktop comparisons.", false),
         new("v6", "compact-search", 6, "Compact search v6", "Two-roll search with a smaller expansion budget for browsers."),
         new("v7", "neural", 7, "Neural v7", "Trainable neural policy with portable C# inference."),
-        new("v8", "chatgpt-tactician", 8, "ChatGPT Tactician v8", "Bonus-roll planning, capture exposure and exact private-lane endgames.", false),
+        new("v8", "chatgpt-tactician", 8, "ChatGPT Tactician v8", "Bonus-roll planning, capture exposure and exact private-lane endgames."),
         new("v9", "fable", 9, "Fable v9", "Engine-resolved bonus-roll chains, opponent replies and a probabilistic race model scored as win chances.")
     ];
 
