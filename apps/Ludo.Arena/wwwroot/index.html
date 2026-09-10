@@ -14,6 +14,28 @@
 <body>
  <div id="app"><main class="boot"><strong>LUDO / ARENA</strong><p>Preparing the board…</p><progress aria-label="Loading game"></progress></main></div>
  <div id="blazor-error-ui" role="alert">The game encountered a problem. <a href=".">Reload your saved game</a>.</div>
+ <script>
+  // GitHub Pages caches index.html and dotnet.js for ten minutes while every deployment renames the
+  // fingerprinted framework files. A stale copy then asks for files that no longer exist and the loader
+  // stops without a message. If the board has not appeared after a resource failure, a rejected start-up
+  // or sixty seconds, refresh those two cached entry points and reload once per session.
+  (function () {
+   var key = 'arena-boot-retry', app = document.getElementById('app');
+   function stalled() { return app && app.querySelector('main.boot'); }
+   function recover(reason) {
+    if (!stalled() || sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, reason);
+    Promise.allSettled([fetch(location.href, { cache: 'reload' }), fetch('_framework/dotnet.js', { cache: 'reload' })])
+     .then(function () { location.reload(); });
+   }
+   window.addEventListener('error', function (event) {
+    var target = event.target;
+    if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) recover('resource');
+   }, true);
+   window.addEventListener('unhandledrejection', function () { recover('start-up'); });
+   setTimeout(function () { if (stalled()) recover('timeout'); else sessionStorage.removeItem(key); }, 60000);
+  })();
+ </script>
  <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>
 </html>
